@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 
-// Current view state: 'browse' | 'images' | 'compare'
-export const currentView = writable('browse');
+// Current view state: 'select' | 'compare'  
+export const currentView = writable('select');
 
 // Selected folder info
 export const selectedFolder = writable(null);

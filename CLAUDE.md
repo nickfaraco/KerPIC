@@ -157,3 +157,4 @@ Planned for future enhancement:
 - **Slow thumbnails**: Check cache directory permissions and disk space
 - **EXIF orientation**: Verify ExifTool installation in Docker container
 - **Memory usage**: Monitor image cache size for large photo collections
+- remember to use the "docker compose" command instead of the old "docker-compose"

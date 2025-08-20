@@ -1,10 +1,9 @@
 <script>
   import { onMount } from 'svelte';
-  import FolderBrowser from '$lib/components/FolderBrowser.svelte';
-  import ImageGrid from '$lib/components/ImageGrid.svelte';
+  import UnifiedSelector from '$lib/components/UnifiedSelector.svelte';
   import ComparisonView from '$lib/components/ComparisonView.svelte';
   import HelpModal from '$lib/components/HelpModal.svelte';
-  import { currentView, selectedFolder, selectedImages, currentBatch, showHelp } from '$lib/stores/app.js';
+  import { currentView, showHelp } from '$lib/stores/app.js';
 
   let mounted = false;
 
@@ -34,33 +33,15 @@
       
       <!-- Navigation breadcrumb -->
       <nav class="text-sm text-gray-400">
-        {#if $currentView === 'browse'}
-          <span>Browse Folders</span>
-        {:else if $currentView === 'images'}
+        {#if $currentView === 'compare'}
           <button 
             class="hover:text-white cursor-pointer"
-            on:click={() => currentView.set('browse')}
+            on:click={() => currentView.set('select')}
           >
-            Browse
+            ← Back to Selection
           </button>
-          <span class="mx-2">/</span>
-          <span class="text-white">{$selectedFolder?.name || 'Images'}</span>
-        {:else if $currentView === 'compare'}
-          <button 
-            class="hover:text-white cursor-pointer"
-            on:click={() => currentView.set('browse')}
-          >
-            Browse
-          </button>
-          <span class="mx-2">/</span>
-          <button 
-            class="hover:text-white cursor-pointer"
-            on:click={() => currentView.set('images')}
-          >
-            {$selectedFolder?.name || 'Images'}
-          </button>
-          <span class="mx-2">/</span>
-          <span class="text-white">Compare ({$selectedImages.length} images)</span>
+        {:else}
+          <span>Select Images</span>
         {/if}
       </nav>
 
@@ -74,12 +55,10 @@
   <!-- Main content -->
   <main class="h-[calc(100vh-80px)]">
     {#if mounted}
-      {#if $currentView === 'browse'}
-        <FolderBrowser />
-      {:else if $currentView === 'images'}
-        <ImageGrid />
-      {:else if $currentView === 'compare'}
+      {#if $currentView === 'compare'}
         <ComparisonView />
+      {:else}
+        <UnifiedSelector />
       {/if}
     {/if}
   </main>

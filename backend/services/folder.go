@@ -20,34 +20,31 @@ func NewFolderService(baseDir string) *FolderService {
 
 // ListFolders returns the root folders available
 func (fs *FolderService) ListFolders() ([]models.FolderInfo, error) {
-	folders := []models.FolderInfo{}
-
-	entries, err := os.ReadDir(fs.baseDir)
+	// Get the root directory contents
+	rootContents, err := fs.GetFolderContents("")
 	if err != nil {
 		return nil, err
 	}
 
-	for _, entry := range entries {
-		if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") {
-			folders = append(folders, models.FolderInfo{
-				Name: entry.Name(),
-				Path: entry.Name(),
-			})
-		}
-	}
-
-	return folders, nil
+	// Return just the root contents (includes both subfolders and images)
+	return []models.FolderInfo{*rootContents}, nil
 }
 
 // GetFolderContents returns the contents of a specific folder
 func (fs *FolderService) GetFolderContents(relativePath string) (*models.FolderInfo, error) {
-	// Sanitize path to prevent directory traversal
-	cleanPath := filepath.Clean(relativePath)
-	if strings.Contains(cleanPath, "..") {
-		return nil, os.ErrPermission
+	// Handle empty path (root directory)
+	var cleanPath, fullPath string
+	if relativePath == "" {
+		cleanPath = ""
+		fullPath = fs.baseDir
+	} else {
+		// Sanitize path to prevent directory traversal
+		cleanPath = filepath.Clean(relativePath)
+		if strings.Contains(cleanPath, "..") {
+			return nil, os.ErrPermission
+		}
+		fullPath = filepath.Join(fs.baseDir, cleanPath)
 	}
-
-	fullPath := filepath.Join(fs.baseDir, cleanPath)
 
 	// Check if path exists and is a directory
 	info, err := os.Stat(fullPath)
@@ -58,8 +55,14 @@ func (fs *FolderService) GetFolderContents(relativePath string) (*models.FolderI
 		return nil, os.ErrInvalid
 	}
 
+	// Handle folder name for root directory
+	folderName := filepath.Base(cleanPath)
+	if cleanPath == "" {
+		folderName = "Root"
+	}
+
 	folder := &models.FolderInfo{
-		Name: filepath.Base(cleanPath),
+		Name: folderName,
 		Path: cleanPath,
 	}
 
