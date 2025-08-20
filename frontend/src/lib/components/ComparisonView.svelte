@@ -22,7 +22,7 @@
 
   onMount(async () => {
     if ($selectedImages.length < 2) {
-      currentView.set('images');
+      currentView.set('select');
       return;
     }
 
@@ -137,7 +137,7 @@
       }
 
       setTimeout(() => {
-        currentView.set('images');
+        currentView.set('select');
       }, 2000);
       
     } catch (error) {
@@ -149,7 +149,7 @@
   }
 
   function exitComparison() {
-    currentView.set('images');
+    currentView.set('select');
   }
 
   function handleKeydown(event) {

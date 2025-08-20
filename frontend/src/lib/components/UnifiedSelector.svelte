@@ -107,25 +107,9 @@
 
 <div class="h-full flex flex-col">
   <!-- Header -->
-  <div class="p-6 border-b border-gray-700">
-    <div class="flex items-center justify-between mb-4">
-      <div>
-        <h2 class="text-xl font-semibold text-white mb-2">Select Images to Compare</h2>
-        <p class="text-gray-400 text-sm">Navigate folders and select 2+ images to start comparing.</p>
-      </div>
-      
-      {#if canCompare}
-        <button
-          class="btn-primary"
-          on:click={startComparison}
-        >
-          Compare {selectedCount} Images
-        </button>
-      {/if}
-    </div>
-
-    <!-- Breadcrumb navigation -->
-    {#if breadcrumbParts.length > 0}
+  {#if breadcrumbParts.length > 0}
+    <div class="p-6 border-b border-gray-700">
+      <!-- Breadcrumb navigation -->
       <nav class="text-sm text-gray-400">
         <button 
           class="hover:text-white"
@@ -147,8 +131,8 @@
           {/if}
         {/each}
       </nav>
-    {/if}
-  </div>
+    </div>
+  {/if}
 
   <!-- Content -->
   <div class="flex-1 p-6 overflow-auto">
