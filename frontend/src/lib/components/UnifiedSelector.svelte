@@ -241,7 +241,7 @@
         <span><kbd class="kbd">?</kbd> Help</span>
       </div>
       
-      <div class="flex items-center gap-4" class:invisible={selectedCount === 0}>
+      <div class="flex items-center gap-4" class:invisible={selectedCount < 2}>
         <span class="text-sm text-gray-400">
           {selectedCount} image{selectedCount !== 1 ? 's' : ''} selected
         </span>
