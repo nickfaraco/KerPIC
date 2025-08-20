@@ -232,7 +232,7 @@
   </div>
 
   <!-- Footer -->
-  <div class="p-4 border-t border-gray-700 bg-gray-800">
+  <div class="px-6 py-2 border-t border-gray-700 bg-gray-800">
     <div class="flex items-center justify-between">
       <div class="text-xs text-gray-400 space-x-4">
         <span><kbd class="kbd">Click</kbd> Select images</span>
@@ -241,20 +241,18 @@
         <span><kbd class="kbd">?</kbd> Help</span>
       </div>
       
-      {#if selectedCount > 0}
-        <div class="flex items-center gap-4">
-          <span class="text-sm text-gray-400">
-            {selectedCount} image{selectedCount !== 1 ? 's' : ''} selected
-          </span>
-          <button
-            class="btn-primary"
-            disabled={!canCompare}
-            on:click={startComparison}
-          >
-            Compare {selectedCount} Images
-          </button>
-        </div>
-      {/if}
+      <div class="flex items-center gap-4" class:invisible={selectedCount === 0}>
+        <span class="text-sm text-gray-400">
+          {selectedCount} image{selectedCount !== 1 ? 's' : ''} selected
+        </span>
+        <button
+          class="btn-primary"
+          disabled={!canCompare}
+          on:click={startComparison}
+        >
+          Compare {selectedCount} Images
+        </button>
+      </div>
     </div>
   </div>
 </div>

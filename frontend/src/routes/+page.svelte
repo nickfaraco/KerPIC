@@ -27,7 +27,7 @@
 
 <div class="min-h-screen bg-gray-900">
   <!-- Header -->
-  <header class="bg-gray-800 border-b border-gray-700 px-6 py-4">
+  <header class="bg-gray-800 border-b border-gray-700 px-6 py-2">
     <div class="flex items-center justify-between">
       <h1 class="text-2xl font-bold text-white">KerPIC</h1>
       
@@ -53,7 +53,7 @@
   </header>
 
   <!-- Main content -->
-  <main class="h-[calc(100vh-80px)]">
+  <main class="h-[calc(100vh-58px)]">
     {#if mounted}
       {#if $currentView === 'compare'}
         <ComparisonView />

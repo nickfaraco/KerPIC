@@ -250,7 +250,7 @@
     <div class="flex-1 flex">
       <!-- Current Best (Left) -->
       <div class="flex-1 flex flex-col">
-        <div class="bg-gray-800 px-4 py-2 border-b border-gray-600">
+        <div class="bg-gray-800 px-6 py-2 border-b border-gray-600">
           <div class="text-sm font-medium text-green-400">Current Best</div>
           <div class="text-xs text-gray-400 truncate">{currentBest?.name}</div>
         </div>
@@ -270,7 +270,7 @@
 
       <!-- Current Candidate (Right) -->
       <div class="flex-1 flex flex-col">
-        <div class="bg-gray-800 px-4 py-2 border-b border-gray-600 flex justify-between items-center">
+        <div class="bg-gray-800 px-6 py-2 border-b border-gray-600 flex justify-between items-center">
           <div>
             <div class="text-sm font-medium text-blue-400">Candidate</div>
             <div class="text-xs text-gray-400 truncate">{currentCandidate?.name}</div>
@@ -292,7 +292,7 @@
     </div>
 
     <!-- Control bar -->
-    <div class="bg-gray-800 border-t border-gray-700 px-6 py-4">
+    <div class="bg-gray-800 border-t border-gray-700 px-6 py-2">
       <div class="flex items-center justify-between">
         <!-- Progress -->
         <div class="text-sm text-gray-400">
