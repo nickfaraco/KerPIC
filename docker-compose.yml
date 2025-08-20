@@ -1,0 +1,14 @@
+services:
+  kerpic:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - "${PHOTOS_PATH:-./photos}:/app/data/photos"
+      - "${CACHE_PATH:-./cache}:/app/cache"
+    environment:
+      - PORT=3000
+      - PHOTOS_DIR=/app/data/photos
+      - CACHE_DIR=/app/cache
+    user: "${UID:-1000}:${GID:-1000}"
+    restart: unless-stopped
