@@ -1,9 +1,10 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, createEventDispatcher } from 'svelte';
   import { api } from '$lib/utils/api.js';
-  import { currentView, selectedImages, comparisonState } from '$lib/stores/app.js';
+  import { selectedImages, comparisonState, markedForDeletion } from '$lib/stores/app.js';
+
+  const dispatch = createEventDispatcher();
   
-  let batch = null;
   let loading = false;
   let saving = false;
   let saveMessage = '';
@@ -22,7 +23,7 @@
 
   onMount(async () => {
     if ($selectedImages.length < 2) {
-      currentView.set('select');
+      dispatch('exit');
       return;
     }
 
@@ -36,16 +37,7 @@
       rejectedImages: []
     });
 
-    // Create batch on server
-    try {
-      loading = true;
-      const imagePaths = $selectedImages.map(img => img.path);
-      batch = await api.createBatch(imagePaths);
-      loading = false;
-    } catch (error) {
-      console.error('Failed to create batch:', error);
-      loading = false;
-    }
+    loading = false;
   });
 
   function nextCandidate() {
@@ -117,39 +109,47 @@
   }
 
   async function finishComparison() {
-    if (!batch || saving) return;
+    if (saving) return;
 
     try {
       saving = true;
-      const selectedPaths = savedImages.map(img => img.path);
-      const result = await api.saveSelected(batch.id, selectedPaths);
       
-      if (result.success.length > 0) {
-        saveMessage = `✅ Saved ${result.success.length} images to "${result.targetFolder}" folder`;
-      }
+      // Get paths of rejected images (not in savedImages)
+      const savedPaths = new Set(savedImages.map(img => img.path));
+      const rejectedPaths = $selectedImages
+        .filter(img => !savedPaths.has(img.path))
+        .map(img => img.path);
       
-      if (result.conflicts.length > 0) {
-        saveMessage += `\n⚠ ${result.conflicts.length} files were skipped (already exist)`;
-      }
-      
-      if (result.failed.length > 0) {
-        saveMessage += `\n❌ ${result.failed.length} files failed to save`;
+      if (rejectedPaths.length > 0) {
+        // Mark rejected photos for deletion in database
+        await api.markPhotosForDeletion(rejectedPaths);
+        
+        // Update local store
+        markedForDeletion.update(currentSet => {
+          const newSet = new Set(currentSet);
+          rejectedPaths.forEach(path => newSet.add(path));
+          return newSet;
+        });
+        
+        saveMessage = `✅ Marked ${rejectedPaths.length} photos for deletion`;
+      } else {
+        saveMessage = `✅ Comparison complete - no photos marked for deletion`;
       }
 
       setTimeout(() => {
-        currentView.set('select');
+        dispatch('exit');
       }, 2000);
       
     } catch (error) {
       saveMessage = `❌ Error: ${error.message}`;
-      console.error('Save failed:', error);
+      console.error('Marking for deletion failed:', error);
     } finally {
       saving = false;
     }
   }
 
   function exitComparison() {
-    currentView.set('select');
+    dispatch('exit');
   }
 
   function handleKeydown(event) {
@@ -215,14 +215,14 @@
     <div class="flex-1 flex items-center justify-center">
       <div class="text-center">
         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
-        <div class="text-white mt-4">Saving selected images...</div>
+        <div class="text-white mt-4">Marking photos for deletion...</div>
       </div>
     </div>
   {:else if saveMessage}
     <div class="flex-1 flex items-center justify-center">
       <div class="text-center max-w-md">
         <div class="text-lg text-white whitespace-pre-line">{saveMessage}</div>
-        <div class="text-gray-400 mt-4">Returning to image selection...</div>
+        <div class="text-gray-400 mt-4">Returning to gallery...</div>
       </div>
     </div>
   {:else if isFinished}
@@ -232,15 +232,15 @@
         <div class="text-6xl mb-4">🎉</div>
         <div class="text-xl text-white mb-2">Comparison Complete!</div>
         <div class="text-gray-400 mb-6">
-          Selected {savedImages.length} images, rejected {rejectedImages.length}
+          Kept {savedImages.length} images, will mark {rejectedImages.length} for deletion
         </div>
         
         <div class="space-y-4">
           <button class="btn-primary" on:click={finishComparison}>
-            Save Selected Images
+            Mark Rejected Photos for Deletion
           </button>
           <button class="btn-secondary" on:click={exitComparison}>
-            Exit Without Saving
+            Exit Without Marking
           </button>
         </div>
       </div>

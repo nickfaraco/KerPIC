@@ -23,7 +23,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o main .
 # Final stage
 FROM alpine:latest
 
-RUN apk add --no-cache exiftool
+# Install runtime dependencies
+RUN apk add --no-cache \
+    exiftool \
+    sqlite
 
 WORKDIR /app
 
