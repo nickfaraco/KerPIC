@@ -47,19 +47,18 @@ func (gh *GalleryHandler) GetDashboard(c *gin.Context) {
 	// Get recent photos (limit 20)
 	var recentPhotos []models.PhotoMetadata = []models.PhotoMetadata{}
 	
-	if gh.db != nil {
+	// Always scan filesystem to catch new photos and cache them
+	if folderPhotos, err := gh.scanFilesystemForPhotos(20); err == nil && folderPhotos != nil {
+		recentPhotos = folderPhotos
+	}
+	
+	// If filesystem scan failed, fallback to database
+	if len(recentPhotos) == 0 && gh.db != nil {
 		searchReq := &models.SearchRequest{
 			Limit: 20,
 		}
 		if dbPhotos, err := gh.db.SearchPhotos(searchReq); err == nil && dbPhotos != nil {
 			recentPhotos = dbPhotos
-		}
-	}
-	
-	if len(recentPhotos) == 0 {
-		// Fallback: scan filesystem for recent photos
-		if folderPhotos, err := gh.scanFilesystemForPhotos(20); err == nil && folderPhotos != nil {
-			recentPhotos = folderPhotos
 		}
 	}
 
@@ -122,16 +121,15 @@ func (gh *GalleryHandler) GetPhotos(c *gin.Context) {
 
 	var photos []models.PhotoMetadata = []models.PhotoMetadata{}
 	
-	if gh.db != nil {
-		if dbPhotos, err := gh.db.SearchPhotos(searchReq); err == nil && dbPhotos != nil {
-			photos = dbPhotos
-		}
+	// Always scan filesystem to catch new photos and cache them
+	if folderPhotos, err := gh.scanFilesystemForPhotos(limit); err == nil && folderPhotos != nil {
+		photos = folderPhotos
 	}
 	
-	if len(photos) == 0 {
-		// Fallback: scan filesystem for photos
-		if folderPhotos, err := gh.scanFilesystemForPhotos(limit); err == nil && folderPhotos != nil {
-			photos = folderPhotos
+	// If filesystem scan failed, fallback to database
+	if len(photos) == 0 && gh.db != nil {
+		if dbPhotos, err := gh.db.SearchPhotos(searchReq); err == nil && dbPhotos != nil {
+			photos = dbPhotos
 		}
 	}
 
@@ -308,16 +306,15 @@ func (gh *GalleryHandler) SearchPhotos(c *gin.Context) {
 	
 	var photos []models.PhotoMetadata = []models.PhotoMetadata{}
 	
-	if gh.db != nil {
-		if dbPhotos, err := gh.db.SearchPhotos(&req); err == nil && dbPhotos != nil {
-			photos = dbPhotos
-		}
+	// Always scan filesystem to catch new photos and cache them
+	if folderPhotos, err := gh.scanFilesystemForPhotos(req.Limit); err == nil && folderPhotos != nil {
+		photos = folderPhotos
 	}
 	
-	if len(photos) == 0 {
-		// Fallback: scan filesystem for photos
-		if folderPhotos, err := gh.scanFilesystemForPhotos(req.Limit); err == nil && folderPhotos != nil {
-			photos = folderPhotos
+	// If filesystem scan failed, fallback to database
+	if len(photos) == 0 && gh.db != nil {
+		if dbPhotos, err := gh.db.SearchPhotos(&req); err == nil && dbPhotos != nil {
+			photos = dbPhotos
 		}
 	}
 
@@ -378,6 +375,12 @@ func (gh *GalleryHandler) scanFilesystemForPhotos(limit int) ([]models.PhotoMeta
 			Height:  img.Height,
 			Orientation: img.Orientation,
 		}
+		
+		// Cache photo metadata in database for future operations (like deletion)
+		if gh.db != nil {
+			gh.db.CachePhotoMetadata(&photo)
+		}
+		
 		photos = append(photos, photo)
 		count++
 	}
@@ -407,6 +410,12 @@ func (gh *GalleryHandler) scanFilesystemForPhotos(limit int) ([]models.PhotoMeta
 				Height:  img.Height,
 				Orientation: img.Orientation,
 			}
+			
+			// Cache photo metadata in database for future operations (like deletion)
+			if gh.db != nil {
+				gh.db.CachePhotoMetadata(&photo)
+			}
+			
 			photos = append(photos, photo)
 			count++
 		}

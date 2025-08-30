@@ -14,10 +14,11 @@ import (
 )
 
 type DatabaseService struct {
-	db *sql.DB
+	db        *sql.DB
+	photosDir string
 }
 
-func NewDatabaseService(dbPath string) (*DatabaseService, error) {
+func NewDatabaseService(dbPath, photosDir string) (*DatabaseService, error) {
 	// Ensure the directory exists
 	if err := ensureDir(filepath.Dir(dbPath)); err != nil {
 		return nil, err
@@ -28,7 +29,7 @@ func NewDatabaseService(dbPath string) (*DatabaseService, error) {
 		return nil, err
 	}
 
-	service := &DatabaseService{db: db}
+	service := &DatabaseService{db: db, photosDir: photosDir}
 	if err := service.initSchema(); err != nil {
 		return nil, err
 	}
@@ -513,11 +514,25 @@ func (ds *DatabaseService) DeleteMarkedPhotos() ([]string, error) {
 
 	var deletedPhotos []string
 	for _, path := range markedPhotos {
+		// Construct full path to file
+		fullPath := filepath.Join(ds.photosDir, path)
+		
 		// Delete from filesystem
-		if err := os.Remove(path); err == nil {
+		if err := os.Remove(fullPath); err == nil {
 			// Only delete from database if file was successfully removed
 			if _, err := stmt.Exec(path); err == nil {
 				deletedPhotos = append(deletedPhotos, path)
+			}
+		} else {
+			// Log deletion failure for debugging
+			fmt.Printf("Failed to delete file %s (full path: %s): %v\n", path, fullPath, err)
+			
+			// If file doesn't exist, remove stale database entry
+			if os.IsNotExist(err) {
+				fmt.Printf("Removing stale database entry for non-existent file: %s\n", path)
+				if _, err := stmt.Exec(path); err == nil {
+					deletedPhotos = append(deletedPhotos, path+" (stale entry)")
+				}
 			}
 		}
 	}

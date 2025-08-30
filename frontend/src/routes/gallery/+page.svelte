@@ -113,7 +113,7 @@
     if (confirmed) {
       try {
         loading = true;
-        await api.deleteMarkedPhotos();
+        const result = await api.deleteMarkedPhotos();
         
         // Clear the marked photos from the store
         markedForDeletion.set(new Set());
@@ -121,7 +121,7 @@
         // Reload the dashboard to refresh the photo list
         await loadDashboard();
         
-        alert(`Successfully deleted ${markedPaths.length} photos.`);
+        alert(`Successfully deleted ${result.count} photos.`);
       } catch (error) {
         console.error('Failed to delete marked photos:', error);
         alert(`Error deleting photos: ${error.message}`);

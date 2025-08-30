@@ -84,7 +84,9 @@
         markSelectedForDeletion();
       } else if (event.key === 'u' || event.key === 'U') {
         event.preventDefault();
-        undoLastAction();
+        undoLastAction().catch(error => {
+          console.error('Failed to undo action:', error);
+        });
       } else if (event.key === 'c' || event.key === 'C') {
         event.preventDefault();
         compareSelected();
@@ -115,12 +117,17 @@
     });
   }
 
-  function markSelectedForDeletion() {
+  async function markSelectedForDeletion() {
     const selectedPaths = Array.from($selectedPhotos);
     if (selectedPaths.length > 0) {
-      markForDeletion(selectedPaths);
-      // Remove marked photos from selection since they're no longer viable
-      clearSelection();
+      try {
+        await markForDeletion(selectedPaths);
+        // Remove marked photos from selection since they're no longer viable
+        clearSelection();
+      } catch (error) {
+        console.error('Failed to mark photos for deletion:', error);
+        // Could show user-friendly error message here
+      }
     }
   }
 

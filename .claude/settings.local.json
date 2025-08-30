@@ -4,7 +4,10 @@
       "Bash(mkdir:*)",
       "Bash(go mod:*)",
       "Bash(docker compose:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(curl:*)",
+      "Read(/Users/nick/dev/hobbies/test-images/**)",
+      "Read(/Users/nick/dev/hobbies/test-images/**)"
     ],
     "deny": [],
     "ask": []

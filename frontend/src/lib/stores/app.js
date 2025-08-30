@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import { api } from '$lib/utils/api.js';
 
 
 // Selected folder info
@@ -66,7 +67,7 @@ export function clearSelection() {
   selectedPhotos.set(new Set());
 }
 
-export function markForDeletion(photoPaths) {
+export async function markForDeletion(photoPaths) {
   // Save current state to undo stack
   undoStack.update(stack => {
     return [...stack.slice(-9), { // Keep last 10 operations
@@ -76,33 +77,74 @@ export function markForDeletion(photoPaths) {
     }];
   });
 
+  // Update local store first for immediate UI feedback
   markedForDeletion.update(set => {
     const newSet = new Set(set);
     photoPaths.forEach(path => newSet.add(path));
     return newSet;
   });
+
+  // Call backend API to persist the marking
+  try {
+    await api.markPhotosForDeletion(photoPaths);
+  } catch (error) {
+    console.error('Failed to mark photos for deletion:', error);
+    // Revert local store on API failure
+    markedForDeletion.update(set => {
+      const newSet = new Set(set);
+      photoPaths.forEach(path => newSet.delete(path));
+      return newSet;
+    });
+    // Re-throw error so callers can handle it
+    throw error;
+  }
 }
 
-export function unmarkForDeletion(photoPaths) {
+export async function unmarkForDeletion(photoPaths) {
+  // Update local store first for immediate UI feedback
   markedForDeletion.update(set => {
     const newSet = new Set(set);
     photoPaths.forEach(path => newSet.delete(path));
     return newSet;
   });
+
+  // Call backend API to persist the unmarking
+  try {
+    await api.unmarkPhotosForDeletion(photoPaths);
+  } catch (error) {
+    console.error('Failed to unmark photos for deletion:', error);
+    // Revert local store on API failure
+    markedForDeletion.update(set => {
+      const newSet = new Set(set);
+      photoPaths.forEach(path => newSet.add(path));
+      return newSet;
+    });
+    // Re-throw error so callers can handle it
+    throw error;
+  }
 }
 
-export function undoLastAction() {
+export async function undoLastAction() {
+  let lastAction = null;
+  
   undoStack.update(stack => {
     if (stack.length === 0) return stack;
     
-    const lastAction = stack[stack.length - 1];
-    const newStack = stack.slice(0, -1);
-    
-    // Undo the action based on type
-    if (lastAction.action === 'mark_deletion') {
-      unmarkForDeletion(lastAction.photoPaths);
-    }
-    
-    return newStack;
+    lastAction = stack[stack.length - 1];
+    return stack.slice(0, -1);
   });
+  
+  // Perform the undo action
+  if (lastAction) {
+    try {
+      if (lastAction.action === 'mark_deletion') {
+        await unmarkForDeletion(lastAction.photoPaths);
+      }
+    } catch (error) {
+      console.error('Failed to undo action:', error);
+      // Re-add to undo stack if operation failed
+      undoStack.update(stack => [...stack, lastAction]);
+      throw error;
+    }
+  }
 }

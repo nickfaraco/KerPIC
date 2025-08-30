@@ -25,7 +25,7 @@ func main() {
 
 	// Database for metadata caching (optional)
 	dbPath := filepath.Join(cacheDir, "kerpic.db")
-	db, err := services.NewDatabaseService(dbPath)
+	db, err := services.NewDatabaseService(dbPath, photosDir)
 	if err != nil {
 		log.Printf("Warning: Failed to initialize database (running without cache): %v", err)
 		// Create a nil database service for graceful degradation

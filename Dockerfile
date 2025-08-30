@@ -8,9 +8,13 @@ COPY frontend/ .
 RUN npm run build
 
 # Go backend stage
-FROM golang:1.21-alpine AS backend-builder
+FROM golang:1.23-alpine AS backend-builder
 
 RUN apk add --no-cache exiftool
+
+# Set Go proxy environment variables for better connectivity
+ENV GOPROXY=https://goproxy.io,direct
+ENV GOSUMDB=sum.golang.org
 
 WORKDIR /app/backend
 COPY backend/go.mod ./
