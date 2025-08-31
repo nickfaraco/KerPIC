@@ -7,6 +7,7 @@
     markedForDeletion,
     toggleSelection,
     markForDeletion,
+    unmarkForDeletion,
     undoLastAction,
     clearSelection
   } from '$lib/stores/app.js';
@@ -38,7 +39,15 @@
   }
 
   function handlePhotoClick(photo, index) {
-    console.log('Photo clicked:', photo.name, 'Selection mode:', $selectionMode);
+    console.log('Photo clicked:', photo.name, 'Selection mode:', $selectionMode, 'Marked for deletion:', isMarkedForDeletion(photo));
+    
+    // If photo is marked for deletion, clicking it unmarks it (in any mode)
+    if (isMarkedForDeletion(photo)) {
+      console.log('Unmarking photo for deletion:', photo.path);
+      unmarkPhotoForDeletion(photo.path);
+      return;
+    }
+    
     if ($selectionMode) {
       // In selection mode, clicking toggles selection
       console.log('Toggling selection for:', photo.path);
@@ -82,6 +91,9 @@
       if (event.key === 'd' || event.key === 'D') {
         event.preventDefault();
         markSelectedForDeletion();
+      } else if (event.key === 'r' || event.key === 'R') {
+        event.preventDefault();
+        unmarkSelectedForDeletion();
       } else if (event.key === 'u' || event.key === 'U') {
         event.preventDefault();
         undoLastAction().catch(error => {
@@ -126,6 +138,32 @@
         clearSelection();
       } catch (error) {
         console.error('Failed to mark photos for deletion:', error);
+        // Could show user-friendly error message here
+      }
+    }
+  }
+
+  async function unmarkPhotoForDeletion(photoPath) {
+    try {
+      await unmarkForDeletion([photoPath]);
+      console.log('Successfully unmarked photo for deletion:', photoPath);
+    } catch (error) {
+      console.error('Failed to unmark photo for deletion:', error);
+      // Could show user-friendly error message here
+    }
+  }
+
+  async function unmarkSelectedForDeletion() {
+    const selectedPaths = Array.from($selectedPhotos);
+    const markedSelectedPaths = selectedPaths.filter(path => $markedForDeletion.has(path));
+    
+    if (markedSelectedPaths.length > 0) {
+      try {
+        await unmarkForDeletion(markedSelectedPaths);
+        console.log('Successfully unmarked selected photos for deletion:', markedSelectedPaths);
+        // Keep photos selected so user can see which ones were unmarked
+      } catch (error) {
+        console.error('Failed to unmark selected photos for deletion:', error);
         // Could show user-friendly error message here
       }
     }
@@ -200,8 +238,8 @@
         class="aspect-square rounded overflow-hidden transition-all duration-200 focus:outline-none relative group"
         on:click={() => handlePhotoClick(photo, index)}
         title={photo.name}
-        style="border: {$selectedPhotos.has(photo.path) ? '4px solid #F5CB5C' : $markedForDeletion.has(photo.path) ? '4px solid #ef4444' : '1px solid var(--color-dark-gray)'}; 
-               box-shadow: {$selectedPhotos.has(photo.path) ? '0 0 0 2px rgba(245, 203, 92, 0.6)' : 'none'};"
+        style="border: {$markedForDeletion.has(photo.path) ? '4px solid #ef4444' : $selectedPhotos.has(photo.path) ? '4px solid #F5CB5C' : '1px solid var(--color-dark-gray)'}; 
+               box-shadow: {$selectedPhotos.has(photo.path) && !$markedForDeletion.has(photo.path) ? '0 0 0 2px rgba(245, 203, 92, 0.6)' : 'none'};"
       >
 
         <!-- Photo -->
@@ -239,6 +277,7 @@
       <div class="text-xs space-x-4" style="color: var(--text-secondary);">
         <span><kbd class="kbd">Click</kbd> Toggle selection</span>
         <span><kbd class="kbd">D</kbd> Mark for deletion</span>
+        <span><kbd class="kbd">R</kbd> Restore from deletion</span>
         <span><kbd class="kbd">U</kbd> Undo</span>
         {#if $selectedPhotos.size >= 2}
           <span><kbd class="kbd">C</kbd> Compare selected</span>

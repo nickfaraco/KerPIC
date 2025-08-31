@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import ComparisonView from '$lib/components/ComparisonView.svelte';
-  import { selectedImages } from '$lib/stores/app.js';
+  import { selectedImages, selectedPhotos } from '$lib/stores/app.js';
 
   let mounted = false;
 
@@ -19,8 +19,10 @@
   });
 
   function handleComparisonExit() {
-    // Clear the selectedImages and go back to gallery
+    // Clear both selectedImages and selectedPhotos stores and go back to gallery
     selectedImages.set([]);
+    selectedPhotos.set(new Set());
+    console.log('Cleared selection state after comparison exit');
     goto('/gallery');
   }
 </script>

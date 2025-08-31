@@ -20,16 +20,17 @@
       return {
         title: 'Selection Mode',
         shortcuts: [
-          { key: 'Click', desc: 'Toggle photo selection' },
+          { key: 'Click', desc: 'Toggle photo selection (or unmark if marked for deletion)' },
           { key: 'S', desc: 'Exit selection mode' },
           { key: 'D', desc: 'Mark selected photos for deletion' },
+          { key: 'R', desc: 'Restore selected photos from deletion' },
           { key: 'U', desc: 'Undo last action' },
           { key: 'C', desc: 'Compare selected photos (need 2+)' },
           { key: 'A', desc: 'Add selected photos to album' },
           { key: 'X', desc: 'Delete marked photos (with confirmation)' },
           { key: '?', desc: 'Show/hide this help' },
         ],
-        description: 'In selection mode, clicking photos toggles their selection. Selected photos have a yellow border, and photos marked for deletion have a red border and appear dimmed.'
+        description: 'In selection mode, clicking photos toggles their selection. Click on red-bordered photos (marked for deletion) to unmark them. Selected photos have a yellow border, and photos marked for deletion have a red border and appear dimmed.'
       };
     } else {
       return {

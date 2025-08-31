@@ -366,19 +366,33 @@ func (gh *GalleryHandler) scanFilesystemForPhotos(limit int) ([]models.PhotoMeta
 			break
 		}
 
-		photo := models.PhotoMetadata{
-			Path:    img.Path,
-			Name:    img.Name,
-			Size:    img.Size,
-			ModTime: img.ModTime,
-			Width:   img.Width,
-			Height:  img.Height,
-			Orientation: img.Orientation,
+		// Try to get existing metadata from database first
+		var photo models.PhotoMetadata
+		var fromDB bool = false
+		
+		if gh.db != nil {
+			if existingPhoto, err := gh.db.GetCachedPhotoMetadata(img.Path); err == nil {
+				photo = *existingPhoto
+				fromDB = true
+			}
 		}
 		
-		// Cache photo metadata in database for future operations (like deletion)
-		if gh.db != nil {
-			gh.db.CachePhotoMetadata(&photo)
+		// If not in database or database unavailable, create fresh metadata
+		if !fromDB {
+			photo = models.PhotoMetadata{
+				Path:    img.Path,
+				Name:    img.Name,
+				Size:    img.Size,
+				ModTime: img.ModTime,
+				Width:   img.Width,
+				Height:  img.Height,
+				Orientation: img.Orientation,
+			}
+			
+			// Cache photo metadata in database for future operations (like deletion)
+			if gh.db != nil {
+				gh.db.CachePhotoMetadata(&photo)
+			}
 		}
 		
 		photos = append(photos, photo)
@@ -401,19 +415,33 @@ func (gh *GalleryHandler) scanFilesystemForPhotos(limit int) ([]models.PhotoMeta
 				break
 			}
 
-			photo := models.PhotoMetadata{
-				Path:    img.Path,
-				Name:    img.Name,
-				Size:    img.Size,
-				ModTime: img.ModTime,
-				Width:   img.Width,
-				Height:  img.Height,
-				Orientation: img.Orientation,
+			// Try to get existing metadata from database first
+			var photo models.PhotoMetadata
+			var fromDB bool = false
+			
+			if gh.db != nil {
+				if existingPhoto, err := gh.db.GetCachedPhotoMetadata(img.Path); err == nil {
+					photo = *existingPhoto
+					fromDB = true
+				}
 			}
 			
-			// Cache photo metadata in database for future operations (like deletion)
-			if gh.db != nil {
-				gh.db.CachePhotoMetadata(&photo)
+			// If not in database or database unavailable, create fresh metadata
+			if !fromDB {
+				photo = models.PhotoMetadata{
+					Path:    img.Path,
+					Name:    img.Name,
+					Size:    img.Size,
+					ModTime: img.ModTime,
+					Width:   img.Width,
+					Height:  img.Height,
+					Orientation: img.Orientation,
+				}
+				
+				// Cache photo metadata in database for future operations (like deletion)
+				if gh.db != nil {
+					gh.db.CachePhotoMetadata(&photo)
+				}
 			}
 			
 			photos = append(photos, photo)

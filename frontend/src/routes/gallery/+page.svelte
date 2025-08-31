@@ -32,16 +32,28 @@
       recentPhotos = dashboardData.recentPhotos || [];
       albums = dashboardData.recentAlbums || [];
       
-      // Update the markedForDeletion store with photos from database
-      const markedPaths = new Set();
-      if (recentPhotos && Array.isArray(recentPhotos)) {
-        recentPhotos.forEach(photo => {
-          if (photo.markedForDeletion) {
-            markedPaths.add(photo.path);
-          }
-        });
+      // Load ALL marked photos from database, not just those in recent photos
+      try {
+        const markedPhotosResponse = await fetch('/api/photos/marked');
+        if (markedPhotosResponse.ok) {
+          const markedData = await markedPhotosResponse.json();
+          const markedPaths = new Set(markedData.markedPhotos || []);
+          markedForDeletion.set(markedPaths);
+          console.log('Loaded marked photos:', markedPaths);
+        }
+      } catch (markedError) {
+        console.warn('Failed to load marked photos, falling back to recent photos:', markedError);
+        // Fallback: Update markedForDeletion store with photos from recent photos only
+        const markedPaths = new Set();
+        if (recentPhotos && Array.isArray(recentPhotos)) {
+          recentPhotos.forEach(photo => {
+            if (photo.markedForDeletion) {
+              markedPaths.add(photo.path);
+            }
+          });
+        }
+        markedForDeletion.set(markedPaths);
       }
-      markedForDeletion.set(markedPaths);
       
       loading = false;
     } catch (err) {

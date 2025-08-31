@@ -8,6 +8,8 @@
   let loading = false;
   let saving = false;
   let saveMessage = '';
+  let autoFinishTriggered = false;
+  let hasUserInteracted = false; // Track if user has made any comparison choices
 
   // Reactive state
   $: state = $comparisonState;
@@ -21,14 +23,26 @@
   $: hasPreviousCandidate = currentCandidateIndex > 0;
   $: isFinished = candidates.length === 0;
 
+  // Auto-finish when all candidates are processed, but only after user interaction
+  $: if (isFinished && !saving && !loading && !autoFinishTriggered && hasUserInteracted) {
+    console.log('Auto-finishing comparison - all conditions met');
+    autoFinishTriggered = true;
+    finishComparison();
+  }
+
   onMount(async () => {
+    console.log('ComparisonView mounted with selected images:', $selectedImages.length);
+    
     if ($selectedImages.length < 2) {
+      console.log('Not enough images, exiting');
       dispatch('exit');
       return;
     }
 
     // Initialize comparison state
     const [first, ...rest] = $selectedImages;
+    console.log('Initializing comparison:', { first: first.name, candidates: rest.length });
+    
     comparisonState.set({
       currentBest: first,
       candidates: rest,
@@ -37,11 +51,13 @@
       rejectedImages: []
     });
 
+    console.log('Comparison initialized, isFinished:', rest.length === 0);
     loading = false;
   });
 
   function nextCandidate() {
     if (hasNextCandidate) {
+      hasUserInteracted = true; // Mark that user has interacted (navigation counts)
       comparisonState.update(state => ({
         ...state,
         currentCandidateIndex: state.currentCandidateIndex + 1
@@ -51,6 +67,7 @@
 
   function previousCandidate() {
     if (hasPreviousCandidate) {
+      hasUserInteracted = true; // Mark that user has interacted (navigation counts)
       comparisonState.update(state => ({
         ...state,
         currentCandidateIndex: state.currentCandidateIndex - 1
@@ -61,6 +78,8 @@
   function selectCurrentBest() {
     if (!currentCandidate) return;
 
+    hasUserInteracted = true; // Mark that user has made a choice
+    
     // Current candidate becomes the new best
     comparisonState.update(state => {
       const newCandidates = [...state.candidates];
@@ -79,6 +98,8 @@
   function saveCurrentCandidate() {
     if (!currentCandidate) return;
 
+    hasUserInteracted = true; // Mark that user has made a choice
+
     comparisonState.update(state => {
       const newCandidates = [...state.candidates];
       newCandidates.splice(currentCandidateIndex, 1);
@@ -94,6 +115,8 @@
 
   function rejectCurrentCandidate() {
     if (!currentCandidate) return;
+
+    hasUserInteracted = true; // Mark that user has made a choice
 
     comparisonState.update(state => {
       const newCandidates = [...state.candidates];
@@ -120,9 +143,16 @@
         .filter(img => !savedPaths.has(img.path))
         .map(img => img.path);
       
+      console.log('Finishing comparison:', {
+        totalImages: $selectedImages.length,
+        savedImages: savedImages.length,
+        rejectedPaths: rejectedPaths
+      });
+      
       if (rejectedPaths.length > 0) {
         // Mark rejected photos for deletion in database
         await api.markPhotosForDeletion(rejectedPaths);
+        console.log('Successfully marked photos for deletion:', rejectedPaths);
         
         // Update local store
         markedForDeletion.update(currentSet => {
@@ -130,25 +160,49 @@
           rejectedPaths.forEach(path => newSet.add(path));
           return newSet;
         });
-        
-        saveMessage = `✅ Marked ${rejectedPaths.length} photos for deletion`;
-      } else {
-        saveMessage = `✅ Comparison complete - no photos marked for deletion`;
+        console.log('Updated local markedForDeletion store');
       }
 
-      setTimeout(() => {
-        dispatch('exit');
-      }, 2000);
+      // Exit immediately without showing confirmation
+      dispatch('exit');
       
     } catch (error) {
-      saveMessage = `❌ Error: ${error.message}`;
       console.error('Marking for deletion failed:', error);
+      // Still exit even if marking fails
+      dispatch('exit');
     } finally {
       saving = false;
     }
   }
 
-  function exitComparison() {
+  async function exitComparison() {
+    // When exiting early, only mark explicitly rejected images for deletion
+    // Do NOT mark remaining candidates for deletion - they haven't been evaluated yet
+    try {
+      console.log('Exiting comparison early:', {
+        savedImages: savedImages.length,
+        remainingCandidates: candidates.length,
+        rejectedImages: rejectedImages.length
+      });
+      
+      // Only mark explicitly rejected images for deletion
+      if (rejectedImages.length > 0) {
+        const rejectedPaths = rejectedImages.map(img => img.path);
+        await api.markPhotosForDeletion(rejectedPaths);
+        console.log('Successfully marked explicitly rejected photos for deletion on exit:', rejectedPaths);
+        
+        // Update local store
+        markedForDeletion.update(currentSet => {
+          const newSet = new Set(currentSet);
+          rejectedPaths.forEach(path => newSet.add(path));
+          return newSet;
+        });
+        console.log('Updated local markedForDeletion store on exit');
+      }
+    } catch (error) {
+      console.error('Failed to mark photos for deletion on exit:', error);
+    }
+    
     dispatch('exit');
   }
 
@@ -171,11 +225,7 @@
       case ' ':
       case 'Enter':
         event.preventDefault();
-        if (isFinished) {
-          finishComparison();
-        } else {
-          selectCurrentBest();
-        }
+        selectCurrentBest();
         break;
       case 's':
       case 'S':
@@ -203,46 +253,27 @@
 
 <svelte:window on:keydown={handleKeydown} />
 
-<div class="h-full flex flex-col bg-black">
+<div class="h-full flex flex-col" style="background-color: var(--bg-primary);">
   {#if loading}
     <div class="flex-1 flex items-center justify-center">
       <div class="text-center">
-        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-        <div class="text-white mt-4">Preparing comparison...</div>
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto" style="border-color: var(--accent);"></div>
+        <div class="mt-4" style="color: var(--text-primary);">Preparing comparison...</div>
       </div>
     </div>
   {:else if saving}
     <div class="flex-1 flex items-center justify-center">
       <div class="text-center">
-        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
-        <div class="text-white mt-4">Marking photos for deletion...</div>
-      </div>
-    </div>
-  {:else if saveMessage}
-    <div class="flex-1 flex items-center justify-center">
-      <div class="text-center max-w-md">
-        <div class="text-lg text-white whitespace-pre-line">{saveMessage}</div>
-        <div class="text-gray-400 mt-4">Returning to gallery...</div>
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto" style="border-color: var(--accent);"></div>
+        <div class="mt-4" style="color: var(--text-primary);">Marking photos for deletion...</div>
       </div>
     </div>
   {:else if isFinished}
-    <!-- Finished comparison -->
+    <!-- Auto-finishing comparison, show loading -->
     <div class="flex-1 flex items-center justify-center">
       <div class="text-center">
-        <div class="text-6xl mb-4">🎉</div>
-        <div class="text-xl text-white mb-2">Comparison Complete!</div>
-        <div class="text-gray-400 mb-6">
-          Kept {savedImages.length} images, will mark {rejectedImages.length} for deletion
-        </div>
-        
-        <div class="space-y-4">
-          <button class="btn-primary" on:click={finishComparison}>
-            Mark Rejected Photos for Deletion
-          </button>
-          <button class="btn-secondary" on:click={exitComparison}>
-            Exit Without Marking
-          </button>
-        </div>
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto" style="border-color: var(--accent);"></div>
+        <div class="mt-4" style="color: var(--text-primary);">Finalizing comparison...</div>
       </div>
     </div>
   {:else}
@@ -250,9 +281,9 @@
     <div class="flex-1 flex">
       <!-- Current Best (Left) -->
       <div class="flex-1 flex flex-col">
-        <div class="bg-gray-800 px-6 py-2 border-b border-gray-600">
-          <div class="text-sm font-medium text-green-400">Current Best</div>
-          <div class="text-xs text-gray-400 truncate">{currentBest?.name}</div>
+        <div class="px-6 py-2 border-b" style="background-color: var(--bg-secondary); border-color: var(--color-dark-gray);">
+          <div class="text-sm font-medium" style="color: var(--accent);">Current Best</div>
+          <div class="text-xs truncate" style="color: var(--text-secondary);">{currentBest?.name}</div>
         </div>
         <div class="flex-1 flex items-center justify-center p-4">
           {#if currentBest}
@@ -266,16 +297,16 @@
       </div>
 
       <!-- Divider -->
-      <div class="w-1 bg-gray-700"></div>
+      <div class="w-1" style="background-color: var(--color-dark-gray);"></div>
 
       <!-- Current Candidate (Right) -->
       <div class="flex-1 flex flex-col">
-        <div class="bg-gray-800 px-6 py-2 border-b border-gray-600 flex justify-between items-center">
+        <div class="px-6 py-2 border-b flex justify-between items-center" style="background-color: var(--bg-secondary); border-color: var(--color-dark-gray);">
           <div>
-            <div class="text-sm font-medium text-blue-400">Candidate</div>
-            <div class="text-xs text-gray-400 truncate">{currentCandidate?.name}</div>
+            <div class="text-sm font-medium" style="color: var(--text-primary);">Candidate</div>
+            <div class="text-xs truncate" style="color: var(--text-secondary);">{currentCandidate?.name}</div>
           </div>
-          <div class="text-xs text-gray-500">
+          <div class="text-xs" style="color: var(--text-secondary);">
             {currentCandidateIndex + 1} of {candidates.length}
           </div>
         </div>
@@ -291,20 +322,46 @@
       </div>
     </div>
 
-    <!-- Control bar -->
-    <div class="bg-gray-800 border-t border-gray-700 px-6 py-2">
-      <div class="flex items-center justify-between">
-        <!-- Progress -->
-        <div class="text-sm text-gray-400">
-          <div>Progress: {savedImages.length} saved, {rejectedImages.length} rejected</div>
-          <div class="text-xs">
-            {candidates.length} remaining 
-            {#if candidates.length > 0}• {Math.round((($selectedImages.length - candidates.length) / $selectedImages.length) * 100)}% complete{/if}
+    <!-- Thumbnail carousel and controls -->
+    <div class="border-t" style="background-color: var(--bg-secondary); border-color: var(--color-dark-gray);">
+      <!-- Thumbnail carousel -->
+      <div class="px-4 py-3">
+        <div class="flex items-center justify-center space-x-2 overflow-x-auto">
+          <!-- Current Best thumbnail -->
+          <div class="flex-shrink-0">
+            <div class="w-16 h-16 rounded border-2 overflow-hidden" 
+                 style="border-color: var(--accent); opacity: {currentCandidate && currentCandidate.path === currentBest.path ? '0.5' : '1'};">
+              <img 
+                src={api.getThumbnailUrl(currentBest.path, 64)}
+                alt={currentBest.name}
+                class="w-full h-full object-cover"
+              />
+            </div>
           </div>
+          
+          <!-- Candidates thumbnails -->
+          {#each candidates as candidate, index}
+            <div class="flex-shrink-0">
+              <div class="w-16 h-16 rounded border-2 overflow-hidden cursor-pointer transition-all" 
+                   style="border-color: {index === currentCandidateIndex ? 'var(--text-primary)' : 'var(--color-dark-gray)'}; 
+                          opacity: {index === currentCandidateIndex ? '1' : '0.6'};"
+                   on:click={() => comparisonState.update(state => ({...state, currentCandidateIndex: index}))}
+                   role="button"
+                   tabindex="0">
+                <img 
+                  src={api.getThumbnailUrl(candidate.path, 64)}
+                  alt={candidate.name}
+                  class="w-full h-full object-cover"
+                />
+              </div>
+            </div>
+          {/each}
         </div>
+      </div>
 
-        <!-- Action buttons -->
-        <div class="flex items-center gap-4">
+      <!-- Action buttons -->
+      <div class="px-6 py-2 flex items-center justify-between">
+        <div class="flex items-center gap-3">
           <button
             class="btn-secondary"
             disabled={!hasPreviousCandidate}
@@ -334,26 +391,19 @@
           </button>
         </div>
 
-        <!-- Exit -->
-        <button class="btn-secondary" on:click={exitComparison}>
-          Exit
-        </button>
-      </div>
-
-      <!-- Keyboard hints -->
-      <div class="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-500 space-x-6">
-        <span><kbd class="kbd">← →</kbd> or <kbd class="kbd">A D</kbd> Navigate</span>
-        <span><kbd class="kbd">Space</kbd> New Best</span>
-        <span><kbd class="kbd">S</kbd> Save</span>
-        <span><kbd class="kbd">X</kbd> Reject</span>
-        <span><kbd class="kbd">Q</kbd> or <kbd class="kbd">Esc</kbd> Exit</span>
+        <div class="flex items-center gap-4">
+          <!-- Progress indicator -->
+          <div class="text-xs" style="color: var(--text-secondary);">
+            {Math.round((($selectedImages.length - candidates.length) / $selectedImages.length) * 100)}% complete
+          </div>
+          
+          <!-- Exit -->
+          <button class="btn-secondary" on:click={exitComparison}>
+            Exit
+          </button>
+        </div>
       </div>
     </div>
   {/if}
 </div>
 
-<style>
-  .kbd {
-    @apply bg-gray-700 px-1.5 py-0.5 rounded text-xs font-mono border border-gray-600;
-  }
-</style>
