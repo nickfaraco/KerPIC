@@ -1,7 +1,7 @@
 <script>
   import { onMount, createEventDispatcher } from 'svelte';
   import { api } from '$lib/utils/api.js';
-  import { selectedImages, comparisonState, markedForDeletion } from '$lib/stores/app.js';
+  import { selectedImages, comparisonState, markedForDeletion, markForDeletion } from '$lib/stores/app.js';
 
   const dispatch = createEventDispatcher();
   
@@ -150,17 +150,9 @@
       });
       
       if (rejectedPaths.length > 0) {
-        // Mark rejected photos for deletion in database
-        await api.markPhotosForDeletion(rejectedPaths);
+        // Mark rejected photos for deletion using store function (handles undo stack)
+        await markForDeletion(rejectedPaths);
         console.log('Successfully marked photos for deletion:', rejectedPaths);
-        
-        // Update local store
-        markedForDeletion.update(currentSet => {
-          const newSet = new Set(currentSet);
-          rejectedPaths.forEach(path => newSet.add(path));
-          return newSet;
-        });
-        console.log('Updated local markedForDeletion store');
       }
 
       // Exit immediately without showing confirmation
@@ -188,16 +180,8 @@
       // Only mark explicitly rejected images for deletion
       if (rejectedImages.length > 0) {
         const rejectedPaths = rejectedImages.map(img => img.path);
-        await api.markPhotosForDeletion(rejectedPaths);
+        await markForDeletion(rejectedPaths);
         console.log('Successfully marked explicitly rejected photos for deletion on exit:', rejectedPaths);
-        
-        // Update local store
-        markedForDeletion.update(currentSet => {
-          const newSet = new Set(currentSet);
-          rejectedPaths.forEach(path => newSet.add(path));
-          return newSet;
-        });
-        console.log('Updated local markedForDeletion store on exit');
       }
     } catch (error) {
       console.error('Failed to mark photos for deletion on exit:', error);
