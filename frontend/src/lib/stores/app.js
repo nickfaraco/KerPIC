@@ -26,15 +26,14 @@ export const comparisonState = writable({
 // Keyboard help visibility
 export const showHelp = writable(false);
 
-// Selection mode state
-export const selectionMode = writable(false);
+// Photo selection state (no mode required)
 export const selectedPhotos = writable(new Set());
 export const markedForDeletion = writable(new Set());
 
 // Undo stack for reversible operations
 export const undoStack = writable([]);
 
-// Helper functions for selection mode
+// Helper functions for photo selection
 export function addToSelection(photoPath) {
   selectedPhotos.update(set => {
     const newSet = new Set(set);
@@ -59,6 +58,14 @@ export function toggleSelection(photoPath) {
     } else {
       newSet.add(photoPath);
     }
+    return newSet;
+  });
+}
+
+export function addMultipleToSelection(photoPaths) {
+  selectedPhotos.update(set => {
+    const newSet = new Set(set);
+    photoPaths.forEach(path => newSet.add(path));
     return newSet;
   });
 }

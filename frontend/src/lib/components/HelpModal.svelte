@@ -1,5 +1,5 @@
 <script>
-  import { showHelp, selectionMode } from '$lib/stores/app.js';
+  import { showHelp, selectedPhotos, markedForDeletion } from '$lib/stores/app.js';
 
   $: visible = $showHelp;
 
@@ -13,37 +13,52 @@
     }
   }
 
-  $: helpContent = getHelpContent($selectionMode);
+  $: helpContent = getHelpContent($selectedPhotos.size, $markedForDeletion.size);
 
-  function getHelpContent(isSelectionMode) {
-    if (isSelectionMode) {
-      return {
-        title: 'Selection Mode',
-        shortcuts: [
-          { key: 'Click', desc: 'Toggle photo selection (or unmark if marked for deletion)' },
-          { key: 'S', desc: 'Exit selection mode' },
-          { key: 'D', desc: 'Mark selected photos for deletion' },
-          { key: 'R', desc: 'Restore selected photos from deletion' },
-          { key: 'U', desc: 'Undo last action' },
-          { key: 'C', desc: 'Compare selected photos (need 2+)' },
-          { key: 'A', desc: 'Add selected photos to album' },
-          { key: 'X', desc: 'Delete marked photos (with confirmation)' },
-          { key: '?', desc: 'Show/hide this help' },
-        ],
-        description: 'In selection mode, clicking photos toggles their selection. Click on red-bordered photos (marked for deletion) to unmark them. Selected photos have a yellow border, and photos marked for deletion have a red border and appear dimmed.'
-      };
-    } else {
-      return {
-        title: 'Gallery Mode',
-        shortcuts: [
-          { key: 'Click', desc: 'View photo in fullscreen' },
-          { key: 'S', desc: 'Enter selection mode' },
-          { key: 'X', desc: 'Delete marked photos (with confirmation)' },
-          { key: '?', desc: 'Show/hide this help' },
-        ],
-        description: 'Click any photo to view it fullscreen. Use arrow keys or click navigation buttons to browse through photos.'
-      };
+  function getHelpContent(selectedCount, markedCount) {
+    const baseShortcuts = [
+      { key: 'Click', desc: 'Select/deselect photo (or unmark if marked for deletion)' },
+      { key: 'Double-click', desc: 'View photo in fullscreen' },
+      { key: 'Drag', desc: 'Select multiple photos in rectangle' },
+      { key: 'Shift + Drag', desc: 'Deselect multiple photos in rectangle' },
+      { key: 'Ctrl/Cmd + Drag', desc: 'Toggle selection of multiple photos in rectangle' },
+      { key: 'A', desc: 'Select all photos' },
+      { key: 'U', desc: 'Undo last action' },
+      { key: '?', desc: 'Show/hide this help' },
+    ];
+    
+    const selectionShortcuts = [
+      { key: 'Esc', desc: 'Clear selection' },
+      { key: 'D', desc: 'Mark selected photos for deletion' },
+      { key: 'R', desc: 'Restore selected photos from deletion' },
+    ];
+    
+    const comparisonShortcuts = [
+      { key: 'C', desc: 'Compare selected photos (need 2+)' },
+    ];
+    
+    const deletionShortcuts = [
+      { key: 'X', desc: 'Delete marked photos (with confirmation)' },
+    ];
+    
+    let shortcuts = [...baseShortcuts];
+    
+    if (selectedCount > 0) {
+      shortcuts.push(...selectionShortcuts);
+      if (selectedCount >= 2) {
+        shortcuts.push(...comparisonShortcuts);
+      }
     }
+    
+    if (markedCount > 0) {
+      shortcuts.push(...deletionShortcuts);
+    }
+    
+    return {
+      title: 'Photo Gallery',
+      shortcuts,
+      description: 'Click to select photos, double-click to view fullscreen. Selected photos have a yellow border, photos marked for deletion have a red border and appear dimmed. Drag to select multiple photos, Shift+drag to deselect, or Ctrl+drag to toggle selection.'
+    };
   }
 </script>
 

@@ -2,10 +2,12 @@
   import { createEventDispatcher } from 'svelte';
   import { api } from '$lib/utils/api.js';
   import { 
-    selectionMode, 
     selectedPhotos, 
     markedForDeletion,
     toggleSelection,
+    addMultipleToSelection,
+    addToSelection,
+    removeFromSelection,
     markForDeletion,
     unmarkForDeletion,
     undoLastAction,
@@ -19,6 +21,10 @@
   const dispatch = createEventDispatcher();
 
   let gridContainer;
+  let isDragging = false;
+  let dragStartX, dragStartY;
+  let dragSelection = new Set();
+  let selectionBox = null;
 
   // Reactive grid columns based on screen size and prop
   $: gridCols = `grid-cols-${Math.min(columns, 12)}`;
@@ -38,25 +44,28 @@
     return $markedForDeletion.has(photo.path);
   }
 
-  function handlePhotoClick(photo, index) {
-    console.log('Photo clicked:', photo.name, 'Selection mode:', $selectionMode, 'Marked for deletion:', isMarkedForDeletion(photo));
+  function handlePhotoClick(photo, index, event) {
+    // Prevent action if this was part of a drag operation
+    if (isDragging) return;
     
-    // If photo is marked for deletion, clicking it unmarks it (in any mode)
+    console.log('Photo clicked:', photo.name, 'Marked for deletion:', isMarkedForDeletion(photo));
+    
+    // If photo is marked for deletion, clicking it unmarks it
     if (isMarkedForDeletion(photo)) {
       console.log('Unmarking photo for deletion:', photo.path);
       unmarkPhotoForDeletion(photo.path);
       return;
     }
     
-    if ($selectionMode) {
-      // In selection mode, clicking toggles selection
-      console.log('Toggling selection for:', photo.path);
-      toggleSelection(photo.path);
-    } else {
-      // In normal mode, clicking opens viewer
-      console.log('Opening viewer for:', photo.name);
-      viewPhoto(photo, index);
-    }
+    // Single click toggles selection
+    console.log('Toggling selection for:', photo.path);
+    toggleSelection(photo.path);
+  }
+  
+  function handlePhotoDoubleClick(photo, index) {
+    // Double click opens viewer
+    console.log('Double-clicking to open viewer for:', photo.name);
+    viewPhoto(photo, index);
   }
 
   function selectAll() {
@@ -70,64 +79,48 @@
   }
 
   function handleKeydown(event) {
-    console.log('PhotoGrid keydown:', event.key, 'Selection mode:', $selectionMode);
+    console.log('PhotoGrid keydown:', event.key);
     
     // Global shortcuts
-    if (event.key === 's' || event.key === 'S') {
-      event.preventDefault();
-      console.log('S key pressed, toggling selection mode');
-      toggleSelectionMode();
-      return;
-    }
-
     if (event.key === 'x' || event.key === 'X') {
       event.preventDefault();
       dispatch('deleteMarked');
       return;
     }
-
-    // Selection mode shortcuts
-    if ($selectionMode) {
+    
+    if (event.key === 'a' || event.key === 'A') {
+      if (photos.length > 0) {
+        event.preventDefault();
+        selectAll();
+      }
+      return;
+    }
+    
+    // Selection shortcuts (only work when photos are selected)
+    if ($selectedPhotos.size > 0) {
       if (event.key === 'd' || event.key === 'D') {
         event.preventDefault();
         markSelectedForDeletion();
       } else if (event.key === 'r' || event.key === 'R') {
         event.preventDefault();
         unmarkSelectedForDeletion();
-      } else if (event.key === 'u' || event.key === 'U') {
-        event.preventDefault();
-        undoLastAction().catch(error => {
-          console.error('Failed to undo action:', error);
-        });
       } else if (event.key === 'c' || event.key === 'C') {
         event.preventDefault();
         compareSelected();
-      } else if (event.key === 'a' || event.key === 'A') {
+      } else if (event.key === 'Escape') {
         event.preventDefault();
-        addToAlbumPrompt();
+        clearSelection();
       }
-    } else {
-      // Normal mode shortcuts
-      if (event.key === 'a' || event.key === 'A') {
-        if (photos.length > 0) {
-          event.preventDefault();
-          selectAll();
-        }
-      }
+    }
+    
+    if (event.key === 'u' || event.key === 'U') {
+      event.preventDefault();
+      undoLastAction().catch(error => {
+        console.error('Failed to undo action:', error);
+      });
     }
   }
 
-  function toggleSelectionMode() {
-    selectionMode.update(mode => {
-      const newMode = !mode;
-      console.log(`Selection mode toggled from ${mode} to ${newMode}`);
-      if (!newMode) {
-        // Exiting selection mode - clear selections
-        clearSelection();
-      }
-      return newMode;
-    });
-  }
 
   async function markSelectedForDeletion() {
     const selectedPaths = Array.from($selectedPhotos);
@@ -185,6 +178,125 @@
     }
   }
 
+  // Drag selection functions
+  function handleMouseDown(event) {
+    if (event.button !== 0) return; // Only left mouse button
+    
+    isDragging = false;
+    dragStartX = event.clientX;
+    dragStartY = event.clientY;
+    dragSelection = new Set();
+    
+    // Add mouse move and up listeners to document
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }
+  
+  function handleMouseMove(event) {
+    const deltaX = Math.abs(event.clientX - dragStartX);
+    const deltaY = Math.abs(event.clientY - dragStartY);
+    
+    // Start dragging if moved more than 5 pixels
+    if (!isDragging && (deltaX > 5 || deltaY > 5)) {
+      isDragging = true;
+      createSelectionBox();
+    }
+    
+    if (isDragging && selectionBox) {
+      updateSelectionBox(event);
+      updateDragSelection(event);
+    }
+  }
+  
+  function handleMouseUp(event) {
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    
+    if (isDragging) {
+      // Apply drag selection based on modifier keys
+      if (dragSelection.size > 0) {
+        const draggedPaths = Array.from(dragSelection);
+        
+        if (event.ctrlKey || event.metaKey) {
+          // Ctrl/Cmd + drag = toggle selection for dragged photos
+          draggedPaths.forEach(path => toggleSelection(path));
+        } else if (event.shiftKey) {
+          // Shift + drag = deselect dragged photos
+          draggedPaths.forEach(path => removeFromSelection(path));
+        } else {
+          // Normal drag = select dragged photos
+          addMultipleToSelection(draggedPaths);
+        }
+      }
+      removeSelectionBox();
+    }
+    
+    // Reset drag state after a short delay to prevent click events
+    setTimeout(() => {
+      isDragging = false;
+    }, 10);
+  }
+  
+  function createSelectionBox() {
+    selectionBox = document.createElement('div');
+    selectionBox.style.position = 'fixed';
+    selectionBox.style.border = '2px solid #F5CB5C';
+    selectionBox.style.backgroundColor = 'rgba(245, 203, 92, 0.2)';
+    selectionBox.style.pointerEvents = 'none';
+    selectionBox.style.zIndex = '1000';
+    document.body.appendChild(selectionBox);
+  }
+  
+  function updateSelectionBox(event) {
+    if (!selectionBox) return;
+    
+    const left = Math.min(dragStartX, event.clientX);
+    const top = Math.min(dragStartY, event.clientY);
+    const width = Math.abs(event.clientX - dragStartX);
+    const height = Math.abs(event.clientY - dragStartY);
+    
+    selectionBox.style.left = left + 'px';
+    selectionBox.style.top = top + 'px';
+    selectionBox.style.width = width + 'px';
+    selectionBox.style.height = height + 'px';
+  }
+  
+  function updateDragSelection(event) {
+    if (!gridContainer) return;
+    
+    const selectionRect = {
+      left: Math.min(dragStartX, event.clientX),
+      top: Math.min(dragStartY, event.clientY),
+      right: Math.max(dragStartX, event.clientX),
+      bottom: Math.max(dragStartX, event.clientY)
+    };
+    
+    dragSelection.clear();
+    
+    // Check each photo element for intersection with selection box
+    const photoButtons = gridContainer.querySelectorAll('button');
+    photoButtons.forEach((button, index) => {
+      const rect = button.getBoundingClientRect();
+      
+      if (rect.left < selectionRect.right &&
+          rect.right > selectionRect.left &&
+          rect.top < selectionRect.bottom &&
+          rect.bottom > selectionRect.top) {
+        // Photo intersects with selection box
+        if (index < photos.length) {
+          dragSelection.add(photos[index].path);
+        }
+      }
+    });
+  }
+  
+  function removeSelectionBox() {
+    if (selectionBox) {
+      document.body.removeChild(selectionBox);
+      selectionBox = null;
+    }
+  }
+  
   // Update selected when prop changes (legacy support)
   $: if (selected && selected.length > 0) {
     const paths = selected.map(p => p.path || p);
@@ -196,35 +308,21 @@
 
 <div class="photo-grid-container">
   {#if photos.length > 0}
-    <!-- Mode indicator and stats -->
+    <!-- Stats -->
     <div class="flex items-center justify-between mb-4 px-4">
       <div class="text-sm" style="color: var(--text-secondary);">
-        {#if $selectionMode}
-          <span style="color: var(--accent);">Selection Mode</span>
-          {#if $selectedPhotos.size > 0}
-            • <span style="color: var(--text-primary);">{$selectedPhotos.size} selected</span>
-          {/if}
-          {#if $markedForDeletion.size > 0}
-            • <span style="color: var(--danger);">{$markedForDeletion.size} marked for deletion</span>
-          {/if}
-          <!-- Debug info -->
-          <span style="color: #ff0000; font-size: 10px;"> [DEBUG: SM={$selectionMode}, S={$selectedPhotos.size}, D={$markedForDeletion.size}]</span>
-        {:else}
-          <span>{photos.length} photos</span>
-          <!-- Debug info -->
-          <span style="color: #ff0000; font-size: 10px;"> [DEBUG: SM={$selectionMode}]</span>
+        <span>{photos.length} photos</span>
+        {#if $selectedPhotos.size > 0}
+          • <span style="color: var(--accent);">{$selectedPhotos.size} selected</span>
+        {/if}
+        {#if $markedForDeletion.size > 0}
+          • <span style="color: var(--danger);">{$markedForDeletion.size} marked for deletion</span>
         {/if}
       </div>
       
-      {#if $selectionMode}
-        <div class="text-xs" style="color: var(--text-secondary);">
-          Press S to exit selection mode
-        </div>
-      {:else}
-        <div class="text-xs" style="color: var(--text-secondary);">
-          Press S to enter selection mode
-        </div>
-      {/if}
+      <div class="text-xs" style="color: var(--text-secondary);">
+        Click to select • Double-click to view • Drag to select • Shift+drag to deselect • Ctrl+drag to toggle
+      </div>
     </div>
   {/if}
 
@@ -232,11 +330,14 @@
   <div 
     bind:this={gridContainer}
     class="grid gap-2 {responsiveGridCols}"
+    on:mousedown={handleMouseDown}
+    role="grid"
   >
     {#each photos as photo, index}
       <button
         class="aspect-square rounded overflow-hidden transition-all duration-200 focus:outline-none relative group"
-        on:click={() => handlePhotoClick(photo, index)}
+        on:click={(event) => handlePhotoClick(photo, index, event)}
+        on:dblclick={() => handlePhotoDoubleClick(photo, index)}
         title={photo.name}
         style="border: {$markedForDeletion.has(photo.path) ? '4px solid #ef4444' : $selectedPhotos.has(photo.path) ? '4px solid #F5CB5C' : '1px solid var(--color-dark-gray)'}; 
                box-shadow: {$selectedPhotos.has(photo.path) && !$markedForDeletion.has(photo.path) ? '0 0 0 2px rgba(245, 203, 92, 0.6)' : 'none'};"
@@ -271,20 +372,22 @@
     </div>
   {/if}
 
-  {#if $selectionMode && ($selectedPhotos.size > 0 || $markedForDeletion.size > 0)}
-    <!-- Selection mode keyboard shortcuts -->
+  {#if $selectedPhotos.size > 0 || $markedForDeletion.size > 0}
+    <!-- Keyboard shortcuts -->
     <div class="mt-6 text-center px-4">
       <div class="text-xs space-x-4" style="color: var(--text-secondary);">
-        <span><kbd class="kbd">Click</kbd> Toggle selection</span>
-        <span><kbd class="kbd">D</kbd> Mark for deletion</span>
-        <span><kbd class="kbd">R</kbd> Restore from deletion</span>
-        <span><kbd class="kbd">U</kbd> Undo</span>
-        {#if $selectedPhotos.size >= 2}
-          <span><kbd class="kbd">C</kbd> Compare selected</span>
-        {/if}
+        <span><kbd class="kbd">A</kbd> Select all</span>
+        <span><kbd class="kbd">Esc</kbd> Clear selection</span>
+        <span><kbd class="kbd">Shift+Drag</kbd> Deselect</span>
+        <span><kbd class="kbd">Ctrl+Drag</kbd> Toggle</span>
         {#if $selectedPhotos.size > 0}
-          <span><kbd class="kbd">A</kbd> Add to album</span>
+          <span><kbd class="kbd">D</kbd> Mark for deletion</span>
+          <span><kbd class="kbd">R</kbd> Restore from deletion</span>
+          {#if $selectedPhotos.size >= 2}
+            <span><kbd class="kbd">C</kbd> Compare selected</span>
+          {/if}
         {/if}
+        <span><kbd class="kbd">U</kbd> Undo</span>
         {#if $markedForDeletion.size > 0}
           <span><kbd class="kbd">X</kbd> Delete marked</span>
         {/if}
