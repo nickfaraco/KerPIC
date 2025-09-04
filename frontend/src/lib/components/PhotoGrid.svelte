@@ -320,9 +320,6 @@
         {/if}
       </div>
       
-      <div class="text-xs" style="color: var(--text-secondary);">
-        Click to select • Double-click to view • Drag to select • Shift+drag to deselect • Ctrl+drag to toggle
-      </div>
     </div>
   {/if}
 
