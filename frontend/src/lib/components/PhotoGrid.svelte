@@ -11,7 +11,8 @@
     markForDeletion,
     unmarkForDeletion,
     undoLastAction,
-    clearSelection
+    clearSelection,
+    thumbnailSize
   } from '$lib/stores/app.js';
 
   export let photos = [];
@@ -21,14 +22,41 @@
   const dispatch = createEventDispatcher();
 
   let gridContainer;
+  let containerWidth = 0;
   let isDragging = false;
   let dragStartX, dragStartY;
   let dragSelection = new Set();
   let selectionBox = null;
 
-  // Reactive grid columns based on screen size and prop
-  $: gridCols = `grid-cols-${Math.min(columns, 12)}`;
-  $: responsiveGridCols = `grid-cols-4 sm:grid-cols-6 md:grid-cols-${Math.min(columns, 8)} lg:grid-cols-${columns}`;
+  // Dynamic grid calculation
+  let calculatedColumns = 4;
+  let gridStyle = '';
+  let debouncedThumbnailSize = $thumbnailSize;
+  let debounceTimeout;
+  
+  // Debounce thumbnail size changes to prevent too many API requests
+  $: if ($thumbnailSize !== debouncedThumbnailSize) {
+    clearTimeout(debounceTimeout);
+    debounceTimeout = setTimeout(() => {
+      debouncedThumbnailSize = $thumbnailSize;
+    }, 100);
+  }
+  
+  $: if (containerWidth && $thumbnailSize) {
+    const gap = 8; // Tailwind gap-2 = 8px
+    const padding = 0; // No padding on the grid container itself
+    const availableWidth = containerWidth - padding;
+    const itemWidth = $thumbnailSize + gap;
+    calculatedColumns = Math.max(1, Math.floor(availableWidth / itemWidth));
+    
+    // Create CSS custom properties for the grid
+    gridStyle = `
+      display: grid;
+      grid-template-columns: repeat(${calculatedColumns}, ${$thumbnailSize}px);
+      gap: ${gap}px;
+      justify-content: start;
+    `;
+  }
 
 
   function viewPhoto(photo, index) {
@@ -326,28 +354,34 @@
   <!-- Photo grid -->
   <div 
     bind:this={gridContainer}
-    class="grid gap-2 {responsiveGridCols}"
+    bind:clientWidth={containerWidth}
+    style={gridStyle}
     on:mousedown={handleMouseDown}
     role="grid"
   >
     {#each photos as photo, index}
       <button
         class="aspect-square rounded overflow-hidden transition-all duration-200 focus:outline-none relative group"
+        style="width: {$thumbnailSize}px; height: {$thumbnailSize}px; border: {$markedForDeletion.has(photo.path) ? '4px solid #ef4444' : $selectedPhotos.has(photo.path) ? '4px solid #F5CB5C' : '1px solid var(--color-dark-gray)'}; box-shadow: {$selectedPhotos.has(photo.path) && !$markedForDeletion.has(photo.path) ? '0 0 0 2px rgba(245, 203, 92, 0.6)' : 'none'};"
         on:click={(event) => handlePhotoClick(photo, index, event)}
         on:dblclick={() => handlePhotoDoubleClick(photo, index)}
         title={photo.name}
-        style="border: {$markedForDeletion.has(photo.path) ? '4px solid #ef4444' : $selectedPhotos.has(photo.path) ? '4px solid #F5CB5C' : '1px solid var(--color-dark-gray)'}; 
-               box-shadow: {$selectedPhotos.has(photo.path) && !$markedForDeletion.has(photo.path) ? '0 0 0 2px rgba(245, 203, 92, 0.6)' : 'none'};"
       >
 
         <!-- Photo -->
         <img
-          src={api.getThumbnailUrl(photo.path, 200)}
+          src={api.getThumbnailUrl(photo.path, debouncedThumbnailSize)}
           alt={photo.name}
-          class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+          key={`${photo.path}-${debouncedThumbnailSize}`}
+          class="w-full h-full object-contain transition-transform duration-200 group-hover:scale-105"
           style="opacity: {$markedForDeletion.has(photo.path) ? '0.3' : '1'};
                  filter: {$markedForDeletion.has(photo.path) ? 'saturate(0.2) grayscale(0.8)' : 'none'};"
           loading="lazy"
+          on:error={(event) => {
+            // Force reload on error by changing src slightly
+            if (event.target.src.includes('?')) return;
+            event.target.src = api.getThumbnailUrl(photo.path, debouncedThumbnailSize) + '?retry=' + Date.now();
+          }}
         />
 
         <!-- Hover overlay with photo info -->

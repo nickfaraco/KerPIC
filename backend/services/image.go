@@ -159,8 +159,8 @@ func (is *ImageService) GenerateThumbnail(relativePath string, size int) (string
 		src = is.applyOrientation(src, imageInfo.Orientation)
 	}
 
-	// Create thumbnail
-	thumbnail := imaging.Thumbnail(src, size, size, imaging.Lanczos)
+	// Create thumbnail preserving aspect ratio
+	thumbnail := imaging.Fit(src, size, size, imaging.Lanczos)
 
 	// Save thumbnail
 	err = imaging.Save(thumbnail, cachePath, imaging.JPEGQuality(80))

@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import { browser } from '$app/environment';
 import { api } from '$lib/utils/api.js';
 
 
@@ -32,6 +33,40 @@ export const markedForDeletion = writable(new Set());
 
 // Undo stack for reversible operations
 export const undoStack = writable([]);
+
+// Thumbnail size with localStorage persistence
+function createThumbnailSizeStore() {
+  const defaultSize = 150;
+  const storageKey = 'kerpic-thumbnail-size';
+  
+  // Get initial value from localStorage or use default
+  const initialValue = browser && localStorage.getItem(storageKey) 
+    ? parseInt(localStorage.getItem(storageKey)) 
+    : defaultSize;
+    
+  const { subscribe, set, update } = writable(initialValue);
+  
+  return {
+    subscribe,
+    set: (value) => {
+      if (browser) {
+        localStorage.setItem(storageKey, value.toString());
+      }
+      set(value);
+    },
+    update: (fn) => {
+      update((currentValue) => {
+        const newValue = fn(currentValue);
+        if (browser) {
+          localStorage.setItem(storageKey, newValue.toString());
+        }
+        return newValue;
+      });
+    }
+  };
+}
+
+export const thumbnailSize = createThumbnailSizeStore();
 
 // Helper functions for photo selection
 export function addToSelection(photoPath) {

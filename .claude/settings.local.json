@@ -7,7 +7,8 @@
       "Bash(rm:*)",
       "Bash(curl:*)",
       "Read(/Users/nick/dev/hobbies/test-images/**)",
-      "Read(/Users/nick/dev/hobbies/test-images/**)"
+      "Read(/Users/nick/dev/hobbies/test-images/**)",
+      "Bash(docker ps:*)"
     ],
     "deny": [],
     "ask": []

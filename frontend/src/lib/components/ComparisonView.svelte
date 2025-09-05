@@ -318,7 +318,7 @@
               <img 
                 src={api.getThumbnailUrl(currentBest.path, 64)}
                 alt={currentBest.name}
-                class="w-full h-full object-cover"
+                class="w-full h-full object-contain"
               />
             </div>
           </div>
@@ -335,7 +335,7 @@
                 <img 
                   src={api.getThumbnailUrl(candidate.path, 64)}
                   alt={candidate.name}
-                  class="w-full h-full object-cover"
+                  class="w-full h-full object-contain"
                 />
               </div>
             </div>
